@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 const HotspotSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   name: { type: String, required: true },
+  city: { type: String, default: 'Lucknow' },
   corridor: { type: String, required: true },
   lat: { type: Number, required: true },
   lng: { type: Number, required: true },
