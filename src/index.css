@@ -265,3 +265,413 @@ select:focus, input[type="text"]:focus, input[type="number"]:focus {
 ::-webkit-scrollbar-thumb:hover {
   background: #334155;
 }
+
+/* ==========================================================================
+   GOOGLE MAPS SATELLITE & INTERACTIVE CONTROLS SUITE
+   ========================================================================== */
+
+/* Leaflet Container inside Dashboard */
+.gmap-leaflet-wrapper {
+  position: relative;
+  width: 100%;
+  height: 520px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
+  background: #0b1120;
+}
+
+.gmap-leaflet-wrapper.fullscreen-mode {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  border-radius: 0;
+  border: none;
+}
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  font-family: var(--font-body) !important;
+  background: #0b1120 !important;
+}
+
+/* Hide default leaflet zoom to use our Google Maps style controls */
+.leaflet-control-zoom {
+  display: none !important;
+}
+
+.leaflet-control-attribution {
+  background: rgba(0, 0, 0, 0.65) !important;
+  color: #cbd5e1 !important;
+  font-size: 10px !important;
+  padding: 2px 8px !important;
+}
+.leaflet-control-attribution a {
+  color: #94a3b8 !important;
+  text-decoration: none !important;
+}
+
+/* Red-White Animated Danger Corridor */
+.leaflet-interactive.danger-corridor-line {
+  stroke-dasharray: 10, 8;
+  animation: corridorFlow 2s linear infinite;
+}
+
+@keyframes corridorFlow {
+  from {
+    stroke-dashoffset: 36;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Google Maps POI & Landmark Markers */
+.gmap-marker-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.5), 0 0 0 2px #ffffff;
+  color: #ffffff;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  cursor: pointer;
+}
+
+.gmap-marker-pin:hover {
+  transform: scale(1.22);
+  z-index: 999 !important;
+}
+
+.gmap-marker-education {
+  background: #475569;
+}
+
+.gmap-marker-restaurant {
+  background: #ea580c;
+}
+
+.gmap-marker-amusement {
+  background: #9333ea;
+}
+
+.gmap-marker-hospital {
+  background: #e11d48;
+}
+
+.gmap-marker-transit {
+  background: #0284c7;
+}
+
+.gmap-marker-nature {
+  background: #16a34a;
+}
+
+.gmap-marker-atm {
+  background: #059669;
+}
+
+.gmap-marker-hotspot {
+  position: relative;
+  background: #ef4444;
+  font-weight: 800;
+  font-size: 11px;
+}
+
+/* Pulsing aura for Severe Hotspots */
+.gmap-marker-hotspot::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: inherit;
+  opacity: 0.45;
+  animation: markerPulse 1.8s ease-out infinite;
+  z-index: -1;
+}
+
+@keyframes markerPulse {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+
+/* Top Google Maps Search Bar Container */
+.gmap-search-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.gmap-search-bar {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border-radius: 28px;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.25);
+  padding: 6px 14px;
+  gap: 10px;
+  color: #1e293b;
+}
+
+.gmap-search-bar input {
+  flex: 1;
+  background: transparent !important;
+  border: none !important;
+  color: #0f172a !important;
+  font-size: 0.95rem !important;
+  font-weight: 500 !important;
+  padding: 6px 4px !important;
+  box-shadow: none !important;
+}
+.gmap-search-bar input::placeholder {
+  color: #64748b;
+}
+
+/* Quick Category Filter Chips */
+.gmap-category-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.gmap-category-row::-webkit-scrollbar {
+  display: none;
+}
+
+.gmap-category-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(15, 23, 42, 0.8);
+  color: #e2e8f0;
+  backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+}
+
+.gmap-category-chip:hover {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: rgba(56, 189, 248, 0.4);
+  transform: translateY(-1px);
+}
+
+.gmap-category-chip.active {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: #ffffff;
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
+}
+
+/* Floating Heavy Traffic & Weather Alert Card */
+.gmap-alert-card {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 1000;
+  background: #ffffff;
+  color: #1e293b;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  overflow: hidden;
+  max-width: 320px;
+  transition: all 0.25s ease;
+}
+
+.gmap-alert-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #334155;
+  background: #f8fafc;
+}
+
+.gmap-alert-card-body {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.gmap-alert-card-body:hover {
+  background: #f8fafc;
+}
+
+/* Open in Maps Top-Left Button */
+.gmap-open-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1000;
+  background: #ffffff;
+  color: #1a73e8;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 7px 12px;
+  border-radius: 8px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.28);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+.gmap-open-btn:hover {
+  background: #f1f5f9;
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(0,0,0,0.35);
+}
+
+/* Right-Side D-Pad and Zoom Controls */
+.gmap-controls-group {
+  position: absolute;
+  bottom: 24px;
+  right: 18px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.gmap-dpad-cluster {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 50%;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+}
+
+.gmap-dpad-btn {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border: none;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: all 0.15s;
+}
+.gmap-dpad-btn:hover {
+  background: rgba(15, 23, 42, 0.12);
+  color: #0f172a;
+}
+.gmap-dpad-up { top: 4px; left: 32px; }
+.gmap-dpad-down { bottom: 4px; left: 32px; }
+.gmap-dpad-left { top: 32px; left: 4px; }
+.gmap-dpad-right { top: 32px; right: 4px; }
+.gmap-dpad-center {
+  width: 14px;
+  height: 14px;
+  background: #0284c7;
+  border-radius: 50%;
+}
+
+.gmap-zoom-cluster {
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.28);
+  overflow: hidden;
+}
+
+.gmap-icon-btn {
+  width: 40px;
+  height: 40px;
+  background: #ffffff;
+  border: none;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.gmap-icon-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+.gmap-icon-btn:not(:last-child) {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+/* Bottom-Left Layers Switcher Thumbnail */
+.gmap-layers-switch {
+  position: absolute;
+  bottom: 20px;
+  left: 18px;
+  z-index: 1000;
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
+  border: 2px solid #ffffff;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+  cursor: pointer;
+  overflow: hidden;
+  position: absolute;
+  transition: transform 0.2s, box-shadow 0.2s;
+  background-size: cover;
+  background-position: center;
+}
+.gmap-layers-switch:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+}
+.gmap-layers-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0,0,0,0.72);
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 700;
+  text-align: center;
+  padding: 2px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Custom Marker Tooltip Popup */
+.gmap-tooltip {
+  background: rgba(15, 23, 42, 0.95) !important;
+  border: 1px solid rgba(56, 189, 248, 0.3) !important;
+  color: #f8fafc !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+  border-radius: 6px !important;
+  padding: 4px 8px !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
+}
+.gmap-tooltip::before {
+  border-top-color: rgba(15, 23, 42, 0.95) !important;
+}
