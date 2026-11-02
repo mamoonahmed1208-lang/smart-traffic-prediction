@@ -12,8 +12,10 @@ import {
   CheckCircle2,
   Clock,
   Layers,
-  Sparkles
+  Sparkles,
+  FileSpreadsheet
 } from 'lucide-react';
+import { exportAnalyticsToCSV } from '../utils/csvExport';
 
 export default function GraphicalReports({ hotspots = [] }) {
   const [timeRange, setTimeRange] = useState('month'); // 'week' | 'month' | 'year'
@@ -108,6 +110,16 @@ export default function GraphicalReports({ hotspots = [] }) {
               </button>
             ))}
           </div>
+
+          <button
+            onClick={() => exportAnalyticsToCSV(timeRange)}
+            className="btn-secondary"
+            style={{ padding: '8px 14px', fontSize: '0.82rem', borderColor: 'rgba(56, 189, 248, 0.4)' }}
+            title="Export 24h Diurnal Risk & Weather Distribution to CSV"
+          >
+            <FileSpreadsheet size={15} color="var(--brand-cyan)" />
+            <span>Export CSV</span>
+          </button>
 
           <button onClick={handlePrint} className="btn-primary" style={{ padding: '8px 16px', fontSize: '0.82rem' }}>
             <Printer size={15} />

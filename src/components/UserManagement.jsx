@@ -13,50 +13,12 @@ import {
   Settings,
   Activity
 } from 'lucide-react';
+import { getAllRegisteredUsers, registerAccount } from '../utils/authStore';
 
-export default function UserManagement({ currentUser, setCurrentUser }) {
-  const [users, setUsers] = useState([
-    {
-      id: 'usr_1',
-      name: 'Mamoon Ahmed',
-      email: 'mamoon.ahmed@its.gov',
-      role: 'Traffic Authority Officer',
-      department: 'Central ITS Command & Dispatch',
-      status: 'Active',
-      lastLogin: 'Today, 14:20',
-      badgeId: 'ITS-OFF-092'
-    },
-    {
-      id: 'usr_2',
-      name: 'Dr. Sarah Vance',
-      email: 'sarah.vance@mobility.ai',
-      role: 'Data Scientist / ML Engineer',
-      department: 'Autonomous Mobility & AI Research Lab',
-      status: 'Active',
-      lastLogin: 'Yesterday, 18:45',
-      badgeId: 'ITS-RES-014'
-    },
-    {
-      id: 'usr_3',
-      name: 'Eng. David Chen',
-      email: 'david.chen@smartcity.org',
-      role: 'Urban City Planner',
-      department: 'Metropolitan Infrastructure & Road Safety',
-      status: 'Active',
-      lastLogin: 'Oct 12, 11:15',
-      badgeId: 'ITS-PLN-044'
-    },
-    {
-      id: 'usr_4',
-      name: 'Officer Aisha Khan',
-      email: 'aisha.khan@traffic.police.gov',
-      role: 'Highway Patrol Commander',
-      department: 'Rapid Incident Clearance & Field Units',
-      status: 'Active',
-      lastLogin: 'Today, 08:30',
-      badgeId: 'ITS-ENF-118'
-    }
-  ]);
+export default function UserManagement({ currentUser, setCurrentUser, onRegistrationSuccess }) {
+  const [users, setUsers] = useState(() => getAllRegisteredUsers());
+  const [successBanner, setSuccessBanner] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [newUserData, setNewUserData] = useState({
@@ -66,24 +28,35 @@ export default function UserManagement({ currentUser, setCurrentUser }) {
     department: ''
   });
 
-  const handleCreateUser = (e) => {
+  const handleCreateUser = async (e) => {
     e.preventDefault();
+    setErrorMessage('');
     if (!newUserData.name || !newUserData.email) return;
 
-    const created = {
-      id: `usr_${Date.now()}`,
+    const res = await registerAccount({
       name: newUserData.name,
       email: newUserData.email,
       role: newUserData.role,
       department: newUserData.department || 'Regional Traffic Operations',
-      status: 'Active',
-      lastLogin: 'Just now',
-      badgeId: `ITS-${Math.floor(100 + Math.random() * 900)}`
-    };
+      password: 'password123'
+    });
 
-    setUsers([...users, created]);
-    setShowAddModal(false);
-    setNewUserData({ name: '', email: '', role: 'Traffic Authority Officer', department: '' });
+    if (res.success && res.user) {
+      setUsers(getAllRegisteredUsers());
+      setShowAddModal(false);
+      setSuccessBanner(`Registration Successful! Personnel ${res.user.name} (${res.user.role}) has been provisioned with Security Badge ID ${res.user.badgeId}. Official registration message dispatched.`);
+      if (onRegistrationSuccess) {
+        onRegistrationSuccess({
+          user: res.user,
+          message: res.message,
+          registrationMessage: res.registrationMessage
+        });
+      }
+      setNewUserData({ name: '', email: '', role: 'Traffic Authority Officer', department: '' });
+      setTimeout(() => setSuccessBanner(''), 7000);
+    } else {
+      setErrorMessage(res.error || 'Failed to provision user');
+    }
   };
 
   const permissionsMatrix = [
@@ -98,7 +71,33 @@ export default function UserManagement({ currentUser, setCurrentUser }) {
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {/* Registration Feedback Banner */}
+      {successBanner && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.16), rgba(6, 78, 59, 0.28))',
+          border: '1px solid rgba(16, 185, 129, 0.5)',
+          borderRadius: '12px',
+          padding: '14px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          color: '#34d399',
+          boxShadow: '0 0 20px rgba(16, 185, 129, 0.2)',
+          fontSize: '0.85rem',
+          fontWeight: 600,
+          animation: 'fadeIn 0.3s ease-out'
+        }}>
+          <CheckCircle2 size={20} color="#10b981" style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1 }}>{successBanner}</span>
+          <button
+            onClick={() => setSuccessBanner('')}
+            style={{ background: 'transparent', border: 'none', color: 'rgba(255, 255, 255, 0.6)', cursor: 'pointer' }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div className="glass-panel" style={{
         padding: '20px 24px',
@@ -279,6 +278,20 @@ export default function UserManagement({ currentUser, setCurrentUser }) {
             <h3 style={{ fontSize: '1.15rem', color: '#f8fafc', marginBottom: '16px' }}>
               Provision New ITS Personnel Account
             </h3>
+
+            {errorMessage && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                color: '#f87171',
+                fontSize: '0.78rem',
+                marginBottom: '12px'
+              }}>
+                {errorMessage}
+              </div>
+            )}
 
             <form onSubmit={handleCreateUser} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>

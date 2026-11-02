@@ -96,6 +96,18 @@ def train_and_evaluate():
         'confusion_matrix': confusion_matrix(y_test, dt_preds).tolist()
     }
 
+    # Export Decision Tree rules and feature names
+    try:
+        from sklearn.tree import export_text
+        dt_clf = dt_pipeline.named_steps['classifier']
+        encoded_feature_names = dt_pipeline.named_steps['preprocessor'].get_feature_names_out().tolist()
+        tree_rules_text = export_text(dt_clf, feature_names=encoded_feature_names, max_depth=5)
+        with open(os.path.join(CURRENT_DIR, 'dt_rules.txt'), 'w') as rf:
+            rf.write(tree_rules_text)
+        print("Decision Tree text rules written to dt_rules.txt")
+    except Exception as rule_err:
+        print(f"Decision Tree text export note: {rule_err}")
+
     # Save models
     joblib.dump(rf_pipeline, os.path.join(CURRENT_DIR, 'rf_model.joblib'))
     joblib.dump(dt_pipeline, os.path.join(CURRENT_DIR, 'dt_model.joblib'))

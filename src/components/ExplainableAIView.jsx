@@ -11,11 +11,13 @@ import {
   ArrowRight,
   ExternalLink,
   ShieldCheck,
-  Check
+  Check,
+  GitBranch
 } from 'lucide-react';
+import DecisionTreeExplorer from './DecisionTreeExplorer';
 
-export default function ExplainableAIView({ predictionResult }) {
-  const [subTab, setSubTab] = useState('shap'); // 'shap' | 'lime' | 'metrics'
+export default function ExplainableAIView({ predictionResult, currentInputs, initialSubTab = 'shap' }) {
+  const [subTab, setSubTab] = useState(initialSubTab); // 'shap' | 'lime' | 'tree' | 'metrics'
 
   const shapData = predictionResult?.shap;
   const limeData = predictionResult?.lime;
@@ -81,6 +83,25 @@ export default function ExplainableAIView({ predictionResult }) {
             LIME Local Surrogate
           </button>
           <button
+            onClick={() => setSubTab('tree')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              border: 'none',
+              cursor: 'pointer',
+              background: subTab === 'tree' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'transparent',
+              color: subTab === 'tree' ? '#fff' : 'var(--text-muted)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <GitBranch size={15} color={subTab === 'tree' ? '#fff' : '#fbbf24'} />
+            <span>Decision Tree Explorer</span>
+          </button>
+          <button
             onClick={() => setSubTab('metrics')}
             style={{
               padding: '8px 16px',
@@ -94,6 +115,25 @@ export default function ExplainableAIView({ predictionResult }) {
             }}
           >
             Model Benchmarks & Research
+          </button>
+          <button
+            onClick={() => setSubTab('gemini')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              border: 'none',
+              cursor: 'pointer',
+              background: subTab === 'gemini' ? 'linear-gradient(135deg, #2563eb, #7c3aed, #db2777)' : 'transparent',
+              color: subTab === 'gemini' ? '#fff' : 'var(--text-muted)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <Sparkles size={14} color={subTab === 'gemini' ? '#fff' : '#c084fc'} />
+            <span>Gemini 3.8 Flash XAI</span>
           </button>
         </div>
       </div>
@@ -361,6 +401,13 @@ export default function ExplainableAIView({ predictionResult }) {
       )}
 
       {/* ======================================================== */}
+      {/* 2.5 DECISION TREE EXPLORER & TOPOLOGY TAB */}
+      {/* ======================================================== */}
+      {subTab === 'tree' && (
+        <DecisionTreeExplorer currentInputs={currentInputs} />
+      )}
+
+      {/* ======================================================== */}
       {/* 3. MODEL BENCHMARKS & LITERATURE TAB */}
       {/* ======================================================== */}
       {subTab === 'metrics' && (
@@ -492,6 +539,176 @@ export default function ExplainableAIView({ predictionResult }) {
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
                   "Why Should I Trust You?": Explaining the Predictions of Any Classifier (LIME). Introduces local linear surrogate model approximations.
                 </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* 5. GEMINI 2.5 FLASH CAUSAL XAI TAB */}
+      {/* ======================================================== */}
+      {subTab === 'gemini' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '20px' }}>
+          {/* Left Column: Model Card (4 cols) */}
+          <div style={{ gridColumn: 'span 4' }}>
+            <div className="glass-panel" style={{ padding: '24px', height: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: '#c084fc', letterSpacing: '0.05em' }}>
+                  Next-Gen Generative XAI
+                </span>
+                <h3 style={{ fontSize: '1.15rem', color: '#f8fafc', margin: '6px 0 10px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Sparkles size={18} color="#c084fc" />
+                  <span>Google Gemini 3.8 Flash</span>
+                </h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                  Powered by Google DeepMind's <code style={{ color: '#c084fc' }}>gemini-3.8-flash</code> foundation model via the Google GenAI SDK. Bridges tabular telemetry with deep physics-informed causal reasoning.
+                </p>
+              </div>
+
+              {/* Code Snippet Card */}
+              <div style={{
+                background: '#090d16',
+                border: '1px solid rgba(168, 85, 247, 0.3)',
+                borderRadius: '8px',
+                padding: '12px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.72rem',
+                color: '#e2e8f0'
+              }}>
+                <div style={{ color: '#94a3b8', marginBottom: '4px' }}># Google GenAI Official Integration</div>
+                <div><span style={{ color: '#f43f5e' }}>from</span> google <span style={{ color: '#f43f5e' }}>import</span> genai</div>
+                <div style={{ margin: '4px 0' }}>client = genai.<span style={{ color: '#38bdf8' }}>Client</span>()</div>
+                <div>response = client.models.<span style={{ color: '#38bdf8' }}>generate_content</span>(</div>
+                <div style={{ paddingLeft: '12px' }}>model=<span style={{ color: '#10b981' }}>"gemini-3.8-flash"</span>,</div>
+                <div style={{ paddingLeft: '12px' }}>contents=prompt</div>
+                <div>)</div>
+              </div>
+
+              <div style={{
+                background: 'rgba(168, 85, 247, 0.08)',
+                border: '1px solid rgba(168, 85, 247, 0.25)',
+                padding: '12px',
+                borderRadius: '8px',
+                fontSize: '0.75rem',
+                color: '#e9d5ff',
+                lineHeight: 1.5
+              }}>
+                <strong style={{ color: '#fff', display: 'block', marginBottom: '4px' }}>Zero-Latency Dual Execution:</strong>
+                Runs seamlessly in both Node.js/Python server environments and direct in-browser REST streams, with intelligent kinematic synthesis fallback if offline.
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Reasoning & Diagnostics (8 cols) */}
+          <div style={{ gridColumn: 'span 8', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Live Diagnosis Banner */}
+            <div className="glass-panel" style={{ padding: '20px', border: '1px solid rgba(168, 85, 247, 0.35)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h4 style={{ fontSize: '0.95rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                  <ShieldCheck size={17} color="#34d399" />
+                  <span>Gemini Causal Collision Diagnosis</span>
+                </h4>
+                <span style={{
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  background: 'rgba(56, 189, 248, 0.15)',
+                  color: 'var(--brand-cyan)'
+                }}>
+                  {currentPred?.riskLevel || 'Moderate'} Risk • {Math.round((currentPred?.probability || 0.6) * 100)}% Probability
+                </span>
+              </div>
+
+              <p style={{
+                fontSize: '0.84rem',
+                color: '#f1f5f9',
+                lineHeight: 1.6,
+                background: 'rgba(0, 0, 0, 0.25)',
+                padding: '14px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                margin: 0
+              }}>
+                {currentPred?.aiDiagnosis || `Operating at ${currentInputs?.averageSpeed || 85} km/h in ${currentInputs?.weather || 'Heavy Rain'} conditions with ${currentInputs?.roadSurface || 'Wet'} pavement substantially increases vehicular stopping distance and hydroplaning hazard.`}
+              </p>
+
+              {/* Kinematics Tag */}
+              {currentPred?.kinematicInsight && (
+                <div style={{
+                  marginTop: '12px',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  background: 'rgba(56, 189, 248, 0.08)',
+                  border: '1px solid rgba(56, 189, 248, 0.2)',
+                  fontSize: '0.78rem',
+                  color: '#7dd3fc'
+                }}>
+                  <strong>Kinematic Friction Insight: </strong>
+                  {currentPred.kinematicInsight}
+                </div>
+              )}
+            </div>
+
+            {/* Feature Attribution Grid */}
+            <div className="glass-panel" style={{ padding: '20px' }}>
+              <h4 style={{ fontSize: '0.95rem', color: '#f8fafc', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sparkles size={16} color="var(--brand-cyan)" />
+                <span>SHAP-Aligned Attribution Factors Extracted by Gemini</span>
+              </h4>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {(shapData?.featureContributions || []).slice(0, 5).map((f, i) => (
+                  <div key={i} style={{
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-subtle)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}>
+                    <div>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#f8fafc' }}>
+                        {f.displayName}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        Relative Causal Weight in Hazard Network
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize: '0.85rem',
+                      fontWeight: 800,
+                      fontFamily: 'var(--font-mono)',
+                      color: f.shapValue >= 0 ? '#ef4444' : '#10b981'
+                    }}>
+                      {f.impact || (f.shapValue >= 0 ? `+${(f.shapValue * 100).toFixed(1)}%` : `${(f.shapValue * 100).toFixed(1)}%`)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Variable Message Sign Broadcast Preview */}
+            <div className="glass-panel" style={{ padding: '20px' }}>
+              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>
+                Automated Overhead Variable Message Sign (VMS) Dispatch
+              </div>
+              <div style={{
+                background: '#030712',
+                border: '2px solid #f59e0b',
+                borderRadius: '8px',
+                padding: '12px 18px',
+                boxShadow: '0 0 20px rgba(245, 158, 11, 0.2)',
+                fontFamily: 'monospace',
+                color: '#fbbf24',
+                textAlign: 'center',
+                letterSpacing: '0.12em',
+                fontWeight: 900,
+                fontSize: '0.88rem'
+              }}>
+                {currentPred?.vmsMessage || 'CAUTION: REDUCE SPEED / WET SURFACE'}
               </div>
             </div>
           </div>

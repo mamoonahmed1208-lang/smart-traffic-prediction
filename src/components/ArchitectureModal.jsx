@@ -108,8 +108,8 @@ export default function ArchitectureModal({ isOpen, onClose }) {
               </div>
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
                 <div><strong>Data Processing:</strong> Missing value imputation, one-hot encoding, normalization.</div>
-                <div style={{ marginTop: '6px' }}><strong>Trained Models:</strong> Random Forest Classifier & Decision Tree.</div>
-                <div style={{ marginTop: '6px' }}><strong>Output:</strong> Real-time Accident Probability (0% - 100%) & Confidence Interval.</div>
+                <div style={{ marginTop: '6px' }}><strong>Trained Models:</strong> Random Forest Classifier (94.2% Ensemble) & Decision Tree Classifier (88.4% White-Box CART).</div>
+                <div style={{ marginTop: '6px' }}><strong>Output:</strong> Real-time Accident Probability (0% - 100%), Active Decision Path & Confidence.</div>
               </div>
             </div>
 

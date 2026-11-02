@@ -73,6 +73,19 @@ npm run dev
 ```
 *Open your browser and navigate to: `http://localhost:5173/`*
 
+### Deploy to Render
+1. Push this project to GitHub, then in Render choose **New + → Blueprint** and select the repository. Render will use `render.yaml` to build the Vite frontend and start the Express server as one web service.
+2. Enter `GEMINI_API_KEY` when prompted, or add it later under the service's **Environment** settings. Keep it as a server environment variable; do not use `VITE_GEMINI_API_KEY`, which would expose it in the browser.
+3. For persistent users and prediction history, create a MongoDB Atlas database and set `MONGO_URI` in Render to its connection string. Without it, the app uses temporary in-memory storage.
+4. Redeploy after setting environment variables. The Render URL serves both the app and `/api` endpoints.
+
+### Gemini API Key (Optional)
+For live Gemini predictions, copy `.env.example` to `.env` in the project root and set `GEMINI_API_KEY`:
+```env
+GEMINI_API_KEY=your_gemini_api_key
+```
+Keep the key in `.env`, not in `index.html` or source code. The backend loads it when you run `npm run server`; restart the server after changing `.env`.
+
 ### 4. Optional: Python Scikit-learn ML Service
 The project includes a self-contained Python microservice in `ml_service/`:
 ```bash

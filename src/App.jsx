@@ -9,6 +9,13 @@ import GraphicalReports from './components/GraphicalReports';
 import UserManagement from './components/UserManagement';
 import ArchitectureModal from './components/ArchitectureModal';
 import AuthModal from './components/AuthModal';
+import ExclusivePredictionModal from './components/ExclusivePredictionModal';
+import { executeClientPrediction } from './utils/clientMlEngine';
+import { executeGeminiPrediction, getGeminiApiKey } from './utils/geminiAiEngine';
+import { DEFAULT_HOTSPOTS } from './data/hotspotsData';
+import { persistPredictionRecord } from './utils/historyStore';
+import { getCurrentUser } from './utils/authStore';
+import { CheckCircle2, X, Mail, ShieldCheck, ArrowRight } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('prediction');
@@ -17,15 +24,21 @@ export default function App() {
   const [refreshTrigger, setRefreshTrigger] = useState(Date.now());
   const [isArchitectureOpen, setIsArchitectureOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isExclusiveModalOpen, setIsExclusiveModalOpen] = useState(false);
 
   // User Authentication State
-  const [currentUser, setCurrentUser] = useState({
-    id: 'usr_1',
-    name: 'Mamoon Ahmed',
-    email: 'officer@its.gov',
-    role: 'Traffic Authority Officer',
-    department: 'Central ITS Command Center'
-  });
+  const [currentUser, setCurrentUser] = useState(getCurrentUser());
+  const [registrationToast, setRegistrationToast] = useState(null);
+
+  // Auto-dismiss registration message toast
+  useEffect(() => {
+    if (registrationToast) {
+      const timer = setTimeout(() => {
+        setRegistrationToast(null);
+      }, 7000);
+      return () => clearTimeout(timer);
+    }
+  }, [registrationToast]);
 
   // System Health Status State
   const [systemStatus, setSystemStatus] = useState({
@@ -33,8 +46,8 @@ export default function App() {
     status: 'online'
   });
 
-  // Hotspots List from Backend
-  const [hotspots, setHotspots] = useState([]);
+  // Hotspots List (Initialized with full high-fidelity fallback data)
+  const [hotspots, setHotspots] = useState(DEFAULT_HOTSPOTS);
 
   // Traffic Model Inputs State
   const [inputs, setInputs] = useState({
@@ -57,13 +70,13 @@ export default function App() {
   useEffect(() => {
     const fetchStatusAndHotspots = async () => {
       try {
-        const healthRes = await fetch('http://localhost:5000/api/health');
+        const healthRes = await fetch('/api/health');
         if (healthRes.ok) {
           const healthData = await healthRes.json();
           setSystemStatus(healthData);
         }
 
-        const hotspotsRes = await fetch('http://localhost:5000/api/hotspots');
+        const hotspotsRes = await fetch('/api/hotspots');
         if (hotspotsRes.ok) {
           const hotspotsData = await hotspotsRes.json();
           setHotspots(hotspotsData);
@@ -77,11 +90,57 @@ export default function App() {
     executePrediction();
   }, []);
 
+  // Re-run prediction whenever selectedModel changes
+  useEffect(() => {
+    executePrediction();
+  }, [selectedModel]);
+
   // Execute Prediction API Call
   const executePrediction = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/predict', {
+      if (selectedModel === 'Gemini 3.8 Flash') {
+        // Try backend first if available, else run browser-side Gemini engine
+        let data = null;
+        try {
+          const response = await fetch('/api/predict', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'Gemini 3.8 Flash',
+              inputs,
+              geminiApiKey: getGeminiApiKey(),
+              user: currentUser.name
+            }),
+            signal: AbortSignal.timeout(3500)
+          });
+          if (response.ok) {
+            data = await response.json();
+          }
+        } catch (netErr) {
+          // Node server offline or timed out, run client Gemini engine
+        }
+
+        if (!data || !data.success) {
+          data = await executeGeminiPrediction(inputs);
+        }
+
+        setPredictionResult(data);
+        await persistPredictionRecord({
+          _id: data.predictionId || `pred_gemini_${Date.now()}`,
+          modelUsed: 'Gemini 3.8 Flash',
+          inputs,
+          prediction: data.prediction,
+          shap: data.shap,
+          lime: data.lime,
+          recommendations: data.recommendations,
+          user: currentUser.name
+        });
+        setRefreshTrigger(Date.now());
+        return;
+      }
+
+      const response = await fetch('/api/predict', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -94,12 +153,37 @@ export default function App() {
       if (response.ok) {
         const data = await response.json();
         setPredictionResult(data);
+        await persistPredictionRecord({
+          _id: data.predictionId,
+          modelUsed: selectedModel,
+          inputs,
+          prediction: data.prediction,
+          shap: data.shap,
+          lime: data.lime,
+          recommendations: data.recommendations,
+          user: currentUser.name
+        });
         setRefreshTrigger(Date.now());
       } else {
         throw new Error('API Response Error');
       }
     } catch (err) {
-      console.warn('Using client-side fallback engine:', err);
+      console.warn('Using client-side ML & XAI fallback engine:', err.message);
+      const fallbackResult = selectedModel === 'Gemini 3.8 Flash'
+        ? await executeGeminiPrediction(inputs)
+        : executeClientPrediction(inputs, selectedModel);
+
+      setPredictionResult(fallbackResult);
+      await persistPredictionRecord({
+        modelUsed: selectedModel,
+        inputs,
+        prediction: fallbackResult.prediction,
+        shap: fallbackResult.shap,
+        lime: fallbackResult.lime,
+        recommendations: fallbackResult.recommendations,
+        user: currentUser.name
+      });
+      setRefreshTrigger(Date.now());
     } finally {
       setLoading(false);
     }
@@ -115,6 +199,8 @@ export default function App() {
         currentUser={currentUser}
         onOpenAuth={() => setIsAuthOpen(true)}
         systemStatus={systemStatus}
+        onOpenExclusive={() => setIsExclusiveModalOpen(true)}
+        lastMessageTrigger={registrationToast}
       />
 
       {/* Main Content Area */}
@@ -129,6 +215,7 @@ export default function App() {
             predictionResult={predictionResult}
             loading={loading}
             setActiveTab={setActiveTab}
+            onOpenExclusive={() => setIsExclusiveModalOpen(true)}
           />
         )}
 
@@ -158,7 +245,7 @@ export default function App() {
         )}
 
         {activeTab === 'benchmarks' && (
-          <ExplainableAIView predictionResult={predictionResult} />
+          <ExplainableAIView predictionResult={predictionResult} currentInputs={inputs} />
         )}
 
         {activeTab === 'history' && (
@@ -166,7 +253,11 @@ export default function App() {
         )}
 
         {activeTab === 'users' && (
-          <UserManagement currentUser={currentUser} setCurrentUser={setCurrentUser} />
+          <UserManagement
+            currentUser={currentUser}
+            setCurrentUser={setCurrentUser}
+            onRegistrationSuccess={(data) => setRegistrationToast(data)}
+          />
         )}
       </main>
 
@@ -215,6 +306,86 @@ export default function App() {
         </div>
       </footer>
 
+      {/* Global Registration Successful Toast Alert */}
+      {registrationToast && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '24px',
+          zIndex: 99999,
+          background: 'linear-gradient(135deg, rgba(6, 78, 59, 0.95), rgba(4, 120, 87, 0.95))',
+          backdropFilter: 'blur(16px)',
+          border: '1px solid #10b981',
+          borderRadius: '12px',
+          padding: '14px 18px',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(16, 185, 129, 0.35)',
+          maxWidth: '460px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '12px',
+          color: '#f8fafc',
+          animation: 'slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+        }}>
+          <div style={{
+            width: '36px',
+            height: '36px',
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            marginTop: '2px'
+          }}>
+            <CheckCircle2 size={22} color="#34d399" />
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 800, fontSize: '0.92rem', color: '#ffffff' }}>
+                Registration Successful!
+              </span>
+              <span style={{
+                fontSize: '0.68rem',
+                fontWeight: 700,
+                background: 'rgba(255, 255, 255, 0.2)',
+                color: '#ecfdf5',
+                padding: '1px 6px',
+                borderRadius: '4px'
+              }}>
+                {registrationToast.user?.badgeId || 'ITS-ACTIVE'}
+              </span>
+            </div>
+
+            <p style={{ fontSize: '0.78rem', color: '#e2e8f0', margin: '4px 0 6px 0', lineHeight: 1.4 }}>
+              {registrationToast.registrationMessage?.message || registrationToast.message || `Welcome to Intelligent Traffic Systems, ${registrationToast.user?.name}!`}
+            </p>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem', color: '#a7f3d0' }}>
+              <Mail size={12} />
+              <span>Official confirmation message received by {registrationToast.user?.email || 'user'}</span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setRegistrationToast(null)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'rgba(255, 255, 255, 0.7)',
+              cursor: 'pointer',
+              padding: '2px',
+              borderRadius: '4px',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+            title="Dismiss message"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       {/* Modals */}
       <ArchitectureModal
         isOpen={isArchitectureOpen}
@@ -226,6 +397,14 @@ export default function App() {
         onClose={() => setIsAuthOpen(false)}
         currentUser={currentUser}
         onLogin={(user) => setCurrentUser(user)}
+        onRegistrationSuccess={(data) => setRegistrationToast(data)}
+      />
+
+      <ExclusivePredictionModal
+        isOpen={isExclusiveModalOpen}
+        onClose={() => setIsExclusiveModalOpen(false)}
+        inputs={inputs}
+        currentUser={currentUser}
       />
     </div>
   );

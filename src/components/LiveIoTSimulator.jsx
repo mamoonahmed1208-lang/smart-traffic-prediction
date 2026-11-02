@@ -10,8 +10,10 @@ import {
   Car,
   RefreshCw,
   SlidersHorizontal,
-  CloudRain
+  CloudRain,
+  FileSpreadsheet
 } from 'lucide-react';
+import { exportIoTTelemetryToCSV } from '../utils/csvExport';
 
 export default function LiveIoTSimulator() {
   const [streamData, setStreamData] = useState([]);
@@ -27,7 +29,7 @@ export default function LiveIoTSimulator() {
   // Fetch or simulate streaming IoT feeds
   const fetchIoTData = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/iot/live');
+      const res = await fetch('/api/iot/live');
       if (res.ok) {
         const json = await res.json();
         setStreamData(json.corridors || []);
@@ -87,6 +89,16 @@ export default function LiveIoTSimulator() {
           <span style={{ fontSize: '0.78rem', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
             Updated: {lastUpdated}
           </span>
+          <button
+            onClick={() => exportIoTTelemetryToCSV(streamData, dataQualityStats)}
+            className="btn-secondary"
+            style={{ fontSize: '0.8rem', padding: '6px 14px', borderColor: 'rgba(56, 189, 248, 0.4)' }}
+            title="Export real-time IoT sensor telemetry packets to CSV"
+          >
+            <FileSpreadsheet size={14} color="var(--brand-cyan)" />
+            <span>Export CSV</span>
+          </button>
+
           <button
             onClick={() => setIsStreaming(!isStreaming)}
             className="btn-secondary"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   History,
   Download,
@@ -11,8 +11,19 @@ import {
   Calendar,
   Sparkles,
   RefreshCw,
-  Database
+  Database,
+  FileSpreadsheet,
+  ChevronDown,
+  Info,
+  Check
 } from 'lucide-react';
+import { exportAuditHistoryToCSV, exportPredictionToCSV } from '../utils/csvExport';
+import {
+  fetchFullPredictionHistory,
+  deletePredictionRecord,
+  seedBenchmarkRecords,
+  clearAllPredictionHistory
+} from '../utils/historyStore';
 
 export default function HistoryAndReports({ refreshTrigger }) {
   const [historyList, setHistoryList] = useState([]);
@@ -20,17 +31,39 @@ export default function HistoryAndReports({ refreshTrigger }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSeverity, setFilterSeverity] = useState('ALL');
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [toastMessage, setToastMessage] = useState(null);
+  const [showExportOptions, setShowExportOptions] = useState(false);
+  const exportDropdownRef = useRef(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(e.target)) {
+        setShowExportOptions(false);
+      }
+    };
+    if (showExportOptions) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showExportOptions]);
+
+  const showToast = (text, type = 'success') => {
+    setToastMessage({ text, type });
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 4500);
+  };
 
   const fetchHistory = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/history');
-      if (res.ok) {
-        const data = await res.json();
-        setHistoryList(Array.isArray(data) ? data : []);
-      }
+      const records = await fetchFullPredictionHistory();
+      setHistoryList(Array.isArray(records) ? records : []);
     } catch (err) {
-      console.warn('History fetch fallback:', err);
+      console.warn('History fetch error:', err);
     } finally {
       setLoading(false);
     }
@@ -42,41 +75,80 @@ export default function HistoryAndReports({ refreshTrigger }) {
 
   const handleDelete = async (id) => {
     try {
-      await fetch(`http://localhost:5000/api/history/${id}`, { method: 'DELETE' });
-      setHistoryList(prev => prev.filter(item => item._id !== id));
+      const updated = await deletePredictionRecord(id);
+      setHistoryList(updated);
       if (selectedRecord?._id === id) setSelectedRecord(null);
+      showToast('Record deleted from audit history', 'info');
     } catch (err) {
       console.error('Delete error:', err);
     }
   };
 
-  const handleExportCSV = () => {
-    if (historyList.length === 0) return;
-    const headers = ['Timestamp', 'Model', 'Location', 'Speed', 'SpeedLimit', 'Weather', 'RoadSurface', 'RiskPercentage', 'RiskLevel'];
-    const rows = historyList.map(item => [
-      new Date(item.timestamp).toISOString(),
-      item.modelUsed,
-      item.inputs?.locationName || 'Metropolitan Junction',
-      item.inputs?.averageSpeed,
-      item.inputs?.speedLimit,
-      item.inputs?.weather,
-      item.inputs?.roadSurface,
-      item.prediction?.riskPercentage,
-      item.prediction?.riskLevel
-    ]);
+  const handleSeedDemoRecords = () => {
+    const seeded = seedBenchmarkRecords();
+    setHistoryList(seeded);
+    showToast(`Loaded ${seeded.length} realistic benchmark accident prediction records`, 'success');
+  };
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `traffic_prediction_history_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  // Filtered History
+  const filteredHistory = historyList.filter(item => {
+    const matchesFilter = filterSeverity === 'ALL' || item.prediction?.riskLevel?.toUpperCase() === filterSeverity;
+    const matchesSearch = (item.inputs?.locationName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (item.modelUsed || '').toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesFilter && matchesSearch;
+  });
+
+  // Export CSV Handler
+  const handleExportCSV = (mode = 'filtered') => {
+    setShowExportOptions(false);
+
+    let recordsToExport = [];
+    let exportLabel = '';
+
+    if (mode === 'all') {
+      recordsToExport = historyList;
+      exportLabel = `All Historical Records (${recordsToExport.length} entries)`;
+    } else {
+      recordsToExport = filteredHistory;
+      exportLabel = `Filtered Records (${recordsToExport.length} entries)`;
+    }
+
+    if (recordsToExport.length === 0) {
+      if (historyList.length === 0) {
+        showToast('Audit log is empty. Loading benchmark dataset to export...', 'warning');
+        const seeded = seedBenchmarkRecords();
+        setHistoryList(seeded);
+        recordsToExport = seeded;
+      } else {
+        showToast(`No records match current filter "${filterSeverity}". Exporting all ${historyList.length} records.`, 'info');
+        recordsToExport = historyList;
+      }
+    }
+
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const filename = `smart_traffic_prediction_audit_${filterSeverity.toLowerCase()}_${timestamp}.csv`;
+    const result = exportAuditHistoryToCSV(recordsToExport, filename);
+
+    if (result.success) {
+      showToast(`Exported ${recordsToExport.length} records to ${result.filename} (${(result.sizeBytes / 1024).toFixed(1)} KB)`, 'success');
+    } else {
+      showToast(result.error || 'Failed to export CSV', 'warning');
+    }
+  };
+
+  // Export Single Record CSV
+  const handleExportSingleRecordCSV = (item) => {
+    const result = exportAuditHistoryToCSV([item], `traffic_audit_record_${(item.inputs?.locationName || 'record').replace(/[^a-zA-Z0-9]/g, '_')}.csv`);
+    if (result.success) {
+      showToast(`Exported single record for ${item.inputs?.locationName || 'location'} to CSV`, 'success');
+    }
   };
 
   const handleExportJSON = () => {
-    if (historyList.length === 0) return;
+    if (historyList.length === 0) {
+      showToast('No records to export. Seed benchmark data first.', 'warning');
+      return;
+    }
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(historyList, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute('href', dataStr);
@@ -84,14 +156,8 @@ export default function HistoryAndReports({ refreshTrigger }) {
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+    showToast(`Exported ${historyList.length} JSON records`, 'success');
   };
-
-  const filteredHistory = historyList.filter(item => {
-    const matchesFilter = filterSeverity === 'ALL' || item.prediction?.riskLevel?.toUpperCase() === filterSeverity;
-    const matchesSearch = (item.inputs?.locationName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (item.modelUsed || '').toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
 
   const getRiskColor = (level) => {
     switch (level) {
@@ -103,7 +169,36 @@ export default function HistoryAndReports({ refreshTrigger }) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', position: 'relative' }}>
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          padding: '12px 18px',
+          borderRadius: '10px',
+          background: toastMessage.type === 'warning' ? '#78350f' : (toastMessage.type === 'info' ? '#075985' : '#064e3b'),
+          border: `1px solid ${toastMessage.type === 'warning' ? '#f59e0b' : (toastMessage.type === 'info' ? '#38bdf8' : '#10b981')}`,
+          color: '#f8fafc',
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+          animation: 'slideIn 0.25s ease-out',
+          fontSize: '0.85rem',
+          fontWeight: 600
+        }}>
+          {toastMessage.type === 'warning' ? (
+            <AlertTriangle size={18} color="#fbbf24" />
+          ) : (
+            <CheckCircle2 size={18} color="#34d399" />
+          )}
+          <span>{toastMessage.text}</span>
+        </div>
+      )}
+
       {/* Top Header Card */}
       <div className="glass-panel" style={{
         padding: '20px 24px',
@@ -111,7 +206,9 @@ export default function HistoryAndReports({ refreshTrigger }) {
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: '12px'
+        gap: '12px',
+        position: 'relative',
+        zIndex: 40
       }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -136,15 +233,151 @@ export default function HistoryAndReports({ refreshTrigger }) {
         </div>
 
         {/* Action Buttons */}
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <button onClick={fetchHistory} className="btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', position: 'relative' }}>
+          <button
+            onClick={fetchHistory}
+            className="btn-secondary"
+            style={{ fontSize: '0.78rem', padding: '6px 12px' }}
+            title="Refresh from MongoDB & storage"
+          >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             <span>Refresh</span>
           </button>
-          <button onClick={handleExportCSV} className="btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
-            <Download size={14} />
-            <span>Export CSV</span>
+
+          {/* Seed Demo Records */}
+          <button
+            onClick={handleSeedDemoRecords}
+            className="btn-secondary"
+            style={{ fontSize: '0.78rem', padding: '6px 12px', borderColor: 'rgba(56, 189, 248, 0.4)' }}
+            title="Load benchmark corridor predictions"
+          >
+            <Sparkles size={14} color="var(--brand-cyan)" />
+            <span>Seed Benchmark Data</span>
           </button>
+
+          {/* Export CSV Split Button */}
+          <div ref={exportDropdownRef} style={{ position: 'relative', display: 'inline-flex', zIndex: 50 }}>
+            <button
+              onClick={() => handleExportCSV('filtered')}
+              className="btn-primary"
+              style={{
+                fontSize: '0.78rem',
+                padding: '6px 12px',
+                borderTopRightRadius: 0,
+                borderBottomRightRadius: 0,
+                borderRight: '1px solid rgba(255,255,255,0.2)',
+                background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              title={`Export ${filteredHistory.length} records to standard CSV file`}
+            >
+              <FileSpreadsheet size={15} color="#fff" />
+              <span>Export CSV</span>
+              <span style={{
+                background: 'rgba(255, 255, 255, 0.22)',
+                padding: '1px 6px',
+                borderRadius: '10px',
+                fontSize: '0.7rem',
+                fontWeight: 700
+              }}>
+                {filteredHistory.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setShowExportOptions(!showExportOptions)}
+              className="btn-primary"
+              style={{
+                fontSize: '0.78rem',
+                padding: '6px 8px',
+                borderTopLeftRadius: 0,
+                borderBottomLeftRadius: 0,
+                background: 'linear-gradient(135deg, #0284c7, #0369a1)'
+              }}
+              title="CSV Export Options"
+            >
+              <ChevronDown size={14} style={{ transform: showExportOptions ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            </button>
+
+            {/* Export Dropdown Menu */}
+            {showExportOptions && (
+              <div style={{
+                position: 'absolute',
+                top: 'calc(100% + 8px)',
+                right: 0,
+                zIndex: 1000,
+                width: '270px',
+                background: '#090d16',
+                border: '1px solid rgba(56, 189, 248, 0.4)',
+                borderRadius: '10px',
+                boxShadow: '0 20px 40px rgba(0, 0, 0, 0.9), 0 0 20px rgba(2, 132, 199, 0.25)',
+                padding: '8px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+                backdropFilter: 'blur(20px)'
+              }}>
+                <button
+                  onClick={() => handleExportCSV('filtered')}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#f8fafc',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    fontSize: '0.78rem',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(56, 189, 248, 0.12)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Filter size={13} color="var(--brand-cyan)" />
+                    <span>Export Filtered ({filteredHistory.length})</span>
+                  </div>
+                  <Download size={13} color="var(--text-muted)" />
+                </button>
+
+                <button
+                  onClick={() => handleExportCSV('all')}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#f8fafc',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    fontSize: '0.78rem',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(56, 189, 248, 0.12)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Database size={13} color="#10b981" />
+                    <span>Export All ({historyList.length})</span>
+                  </div>
+                  <Download size={13} color="var(--text-muted)" />
+                </button>
+
+                <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '4px 0' }}></div>
+
+                <div style={{ padding: '4px 8px', fontSize: '0.7rem', color: 'var(--text-dim)' }}>
+                  Format: RFC 4180 with UTF-8 BOM (Excel, Sheets, Pandas compatible)
+                </div>
+              </div>
+            )}
+          </div>
+
           <button onClick={handleExportJSON} className="btn-secondary" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
             <Download size={14} />
             <span>Export JSON</span>
@@ -153,9 +386,9 @@ export default function HistoryAndReports({ refreshTrigger }) {
       </div>
 
       {/* Filter and Search Bar */}
-      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', position: 'relative', zIndex: 10 }}>
         <div style={{ position: 'relative', flex: 1, minWidth: '240px' }}>
-          <Search size={16} color="var(--text-dim)" style={{ position: 'absolute', left: '12px', top: '11px' }} />
+          <Search size={16} color="var(--text-dim)" style={{ position: 'absolute', left: '12px', top: '11px', zIndex: 2 }} />
           <input
             type="text"
             placeholder="Search by location or model..."
@@ -188,7 +421,7 @@ export default function HistoryAndReports({ refreshTrigger }) {
       </div>
 
       {/* Main Table */}
-      <div className="glass-panel" style={{ overflow: 'hidden' }}>
+      <div className="glass-panel" style={{ overflow: 'hidden', position: 'relative', zIndex: 5 }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.84rem' }}>
             <thead>
@@ -206,8 +439,36 @@ export default function HistoryAndReports({ refreshTrigger }) {
             <tbody>
               {filteredHistory.length === 0 ? (
                 <tr>
-                  <td colSpan="8" style={{ padding: '36px', textAlign: 'center', color: 'var(--text-dim)' }}>
-                    No prediction records found matching filters. Run a prediction from the Studio to populate.
+                  <td colSpan="8" style={{ padding: '48px 24px', textAlign: 'center' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                      <AlertTriangle size={32} color="#f59e0b" />
+                      <div>
+                        <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#f8fafc' }}>
+                          No prediction records found matching filters
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                          Run a prediction from the Studio or load the benchmark corridor dataset to explore and export CSV.
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                        <button
+                          onClick={handleSeedDemoRecords}
+                          className="btn-primary"
+                          style={{ padding: '6px 14px', fontSize: '0.8rem' }}
+                        >
+                          <Sparkles size={14} />
+                          <span>Load Benchmark Dataset</span>
+                        </button>
+                        <button
+                          onClick={() => handleExportCSV('all')}
+                          className="btn-secondary"
+                          style={{ padding: '6px 14px', fontSize: '0.8rem' }}
+                        >
+                          <FileSpreadsheet size={14} />
+                          <span>Export Sample CSV</span>
+                        </button>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -258,6 +519,15 @@ export default function HistoryAndReports({ refreshTrigger }) {
                       <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: '6px' }}>
                           <button
+                            onClick={() => handleExportSingleRecordCSV(item)}
+                            className="btn-secondary"
+                            style={{ padding: '4px 8px', fontSize: '0.72rem' }}
+                            title="Export this single prediction record to CSV"
+                          >
+                            <Download size={13} color="#10b981" />
+                            <span>CSV</span>
+                          </button>
+                          <button
                             onClick={() => setSelectedRecord(item)}
                             className="btn-secondary"
                             style={{ padding: '4px 8px', fontSize: '0.72rem' }}
@@ -294,7 +564,7 @@ export default function HistoryAndReports({ refreshTrigger }) {
       {/* Record Inspection Modal / Drawer */}
       {selectedRecord && (
         <div className="glass-panel" style={{ padding: '24px', borderColor: 'var(--brand-cyan)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
             <div>
               <h3 style={{ fontSize: '1.1rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Sparkles size={18} color="var(--brand-cyan)" />
@@ -304,9 +574,19 @@ export default function HistoryAndReports({ refreshTrigger }) {
                 MongoDB Document ID: {selectedRecord._id} | {new Date(selectedRecord.timestamp).toLocaleString()}
               </span>
             </div>
-            <button onClick={() => setSelectedRecord(null)} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
-              Close Inspection
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => handleExportSingleRecordCSV(selectedRecord)}
+                className="btn-primary"
+                style={{ fontSize: '0.75rem', padding: '4px 12px' }}
+              >
+                <FileSpreadsheet size={13} />
+                <span>Export Record CSV</span>
+              </button>
+              <button onClick={() => setSelectedRecord(null)} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
+                Close Inspection
+              </button>
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
@@ -325,7 +605,7 @@ export default function HistoryAndReports({ refreshTrigger }) {
               <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {(selectedRecord.shapExplanation?.featureContributions || []).slice(0, 3).map((f, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>{f.displayName.split(' (')[0]}:</span>
+                    <span style={{ color: 'var(--text-muted)' }}>{f.displayName ? f.displayName.split(' (')[0] : f.feature}:</span>
                     <strong style={{ color: f.shapValue >= 0 ? 'var(--xai-positive)' : 'var(--xai-negative)' }}>
                       {f.shapValue >= 0 ? `+${(f.shapValue * 100).toFixed(1)}%` : `${(f.shapValue * 100).toFixed(1)}%`}
                     </strong>
